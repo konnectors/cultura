@@ -6,6 +6,8 @@ const {
   saveBills,
   log
 } = require('cozy-konnector-libs')
+const formatDate = require('date-fns/format')
+
 const request = requestFactory({
   // the debug mode shows all the details about http request and responses. Very usefull for
   // debugging but very verbose. That is why it is commented out by default
@@ -23,48 +25,35 @@ const baseUrl = 'https://www.cultura.com'
 
 module.exports = new BaseKonnector(start)
 
-// The start function is run by the BaseKonnector instance only when it got all the account
-// information (fields). When you run this connector yourself in "standalone" mode or "dev" mode,
-// the account information come from ./konnector-dev-config.json file
 async function start(fields) {
   log('info', 'Authenticating ...')
   await authenticate(fields.email, fields.password)
   log('info', 'Successfully logged in')
-  // // The BaseKonnector instance expects a Promise as return of the function
-  // log('info', 'Fetching the list of documents')
-  // const $ = await request(`${baseUrl}/index.html`)
-  // // cheerio (https://cheerio.js.org/) uses the same api as jQuery (http://jquery.com/)
-  // log('info', 'Parsing list of documents')
-  // const documents = await parseDocuments($)
 
-  // // here we use the saveBills function even if what we fetch are not bills, but this is the most
-  // // common case in connectors
-  // log('info', 'Saving data to Cozy')
-  // await saveBills(documents, fields.folderPath, {
-  //   // this is a bank identifier which will be used to link bills to bank operations. These
-  //   // identifiers should be at least a word found in the title of a bank operation related to this
-  //   // bill. It is not case sensitive.
-  //   identifiers: ['books']
-  // })
-  //
-  return Promise.resolve()
+  log('info', 'Fetching orders URLs')
+  const ordersURLs = await getOrdersURLs()
+  log('info', 'Successfully fetched orders URLs')
+
+  log('info', 'Fetching bills')
+  const bills = await getBills(ordersURLs)
+  log('info', 'Successfully fetched bills')
+
+  log('info', 'Saving bills to Cozy')
+  await saveBills(bills, fields.folderPath, {
+    identifiers: ['cultura']
+  })
+  log('info', 'Saved bills to Cozy')
 }
 
-// this shows authentication using the [signin function](https://github.com/konnectors/libs/blob/master/packages/cozy-konnector-libs/docs/api.md#module_signin)
-// even if this in another domain here, but it works as an example
 function authenticate(email, password) {
   return signin({
     url: `${baseUrl}/customer/account/login`,
     formSelector: '#login-form',
     formData: { 'login[username]': email, 'login[password]': password },
-    // the validate function will check if
     validate: (statusCode, $) => {
-      // The login in toscrape.com always works excepted when no password is set
       if ($(`.disconnect`).length === 1) {
         return true
       } else {
-        // cozy-konnector-libs has its own logging function which format these logs with colors in
-        // standalone and dev mode and as JSON in production mode
         const error = $('.account-login .error-msg').text()
         log('error', error)
         return false
@@ -73,58 +62,95 @@ function authenticate(email, password) {
   })
 }
 
-// The goal of this function is to parse a html page wrapped by a cheerio instance
-// and return an array of js objects which will be saved to the cozy by saveBills (https://github.com/konnectors/libs/blob/master/packages/cozy-konnector-libs/docs/api.md#savebills)
-function parseDocuments($) {
-  // you can find documentation about the scrape function here :
-  // https://github.com/konnectors/libs/blob/master/packages/cozy-konnector-libs/docs/api.md#scrape
-  const docs = scrape(
-    $,
-    {
-      title: {
-        sel: 'h3 a',
-        attr: 'title'
-      },
-      amount: {
-        sel: '.price_color',
-        parse: normalizePrice
-      },
-      url: {
-        sel: 'h3 a',
-        attr: 'title',
-        parse: url => `${baseUrl}/${url}`
-      },
-      fileurl: {
-        sel: 'img',
-        attr: 'src',
-        parse: src => `${baseUrl}/${src}`
-      },
-      filename: {
-        sel: 'h3 a',
-        attr: 'title',
-        parse: title => `${title}.jpg`
-      }
-    },
-    'article'
-  )
-  return docs.map(doc => ({
-    ...doc,
-    // the saveBills function needs a date field
-    // even if it is a little artificial here (these are not real bills)
-    date: new Date(),
-    currency: '€',
-    vendor: 'template',
-    metadata: {
-      // it can be interesting that we add the date of import. This is not mandatory but may be
-      // usefull for debugging or data migration
-      importDate: new Date(),
-      // document version, usefull for migration after change of document structure
-      version: 1
-    }
-  }))
+async function getOrdersURLs() {
+  const $ = await request(`${baseUrl}/sales/order/history`)
+  const urls = $('#my-orders-table .action-link')
+    .map((i, el) => $(el).attr('href'))
+    .get()
+
+  return urls
 }
 
-// convert a price string to a float
-function normalizePrice(price) {
-  return parseFloat(price.replace('£', '').trim())
+async function getBills(ordersURLs) {
+  const bills = await Promise.all(ordersURLs.map(url => getBill(url)))
+
+  return bills
+}
+
+async function getBill(orderURL) {
+  const $ = await request(orderURL)
+  const date = getDate($)
+  const invoiceNumber = getInvoiceNumber($)
+  const { amount, currency } = getAmountAndCurrency($)
+
+  const bill = {
+    vendor: 'Cultura',
+    date,
+    amount,
+    currency,
+    fileurl: getFileUrl($),
+    filename: getFilename(date, amount, invoiceNumber)
+  }
+
+  return bill
+}
+
+function getDate($) {
+  const $el = $('.title-buttons li:first-child')
+  const rawDate = $el.text().trim()
+  const [day, monthStr, year] = rawDate
+    .substring('Date de la commande '.length, rawDate.indexOf(','))
+    .split(' ')
+
+  const months = [
+    'janvier',
+    'février',
+    'mars',
+    'avril',
+    'mai',
+    'juin',
+    'juillet',
+    'août',
+    'septembre',
+    'octobre',
+    'novembre',
+    'décembre'
+  ]
+
+  return new Date(year, months.indexOf(monthStr), day)
+}
+
+function getAmountAndCurrency($) {
+  const $el = $('.total-row')
+  const rawAmount = $el.text().trim()
+  const currency = rawAmount.substr(-1)
+  const amount = parseFloat(
+    rawAmount
+      .substring('Total : '.length, rawAmount.length - 2)
+      .replace(',', '.')
+  )
+
+  return { amount, currency }
+}
+
+function getInvoiceNumber($) {
+  const $el = $('.title-buttons li:first-child')
+  const rawInvoiceNumber = $el.text().trim()
+  const [, invoiceNumber] = rawInvoiceNumber.split(', n°')
+
+  return invoiceNumber
+}
+
+function getFileUrl($) {
+  const $el = $('#my-orders-table .table-link')
+  const url = $el.attr('href')
+
+  return url
+}
+
+function getFilename(date, amount, invoiceNumber) {
+  const dateISO = formatDate(date, 'YYYY-MM-DD')
+  const amountStr = String(amount).replace('.', '-')
+
+  return `${dateISO}_${amountStr}_${invoiceNumber}.pdf`
 }
