@@ -27,7 +27,7 @@ module.exports = new BaseKonnector(start)
 
 async function start(fields) {
   log('info', 'Authenticating ...')
-  await authenticate(fields.email, fields.password)
+  await authenticate(fields.login, fields.password)
   log('info', 'Successfully logged in')
 
   log('info', 'Fetching orders URLs')
@@ -45,11 +45,11 @@ async function start(fields) {
   log('info', 'Saved bills to Cozy')
 }
 
-function authenticate(email, password) {
+function authenticate(login, password) {
   return signin({
     url: `${baseUrl}/customer/account/login`,
     formSelector: '#login-form',
-    formData: { 'login[username]': email, 'login[password]': password },
+    formData: { 'login[username]': login, 'login[password]': password },
     validate: (statusCode, $) => {
       if ($(`.disconnect`).length === 1) {
         return true
