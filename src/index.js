@@ -92,7 +92,7 @@ async function getBill(orderURL) {
     amount,
     currency,
     fileurl: getFileUrl($),
-    filename: getFilename(date, amount, invoiceNumber)
+    filename: getFilename(date, amount, invoiceNumber, currency)
   }
 
   return bill
@@ -151,9 +151,9 @@ function getFileUrl($) {
   return url
 }
 
-function getFilename(date, amount, invoiceNumber) {
+function getFilename(date, amount, invoiceNumber, currency) {
   const dateISO = formatDate(date, 'YYYY-MM-DD')
-  const amountStr = String(amount).replace('.', '-')
+  const amountStr = String(amount).replace('.', ',')
 
-  return `${dateISO}_${amountStr}_${invoiceNumber}.pdf`
+  return `${dateISO}_${amountStr}${currency}_${invoiceNumber}.pdf`
 }
