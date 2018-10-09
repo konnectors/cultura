@@ -50,11 +50,11 @@ async function start(fields) {
 
 function authenticate(login, password) {
   return signin({
-    url: `${baseUrl}/customer/account/login`,
+    url: `${baseUrl}/customer/account/`,
     formSelector: '#login-form',
     formData: { 'login[username]': login, 'login[password]': password },
     validate: (statusCode, $) => {
-      if ($(`.disconnect`).length === 1) {
+      if ($(`.disconnect`).length) {
         return true
       } else {
         const error = $('.account-login .error-msg').text()
