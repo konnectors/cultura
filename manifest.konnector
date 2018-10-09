@@ -84,5 +84,6 @@
       }
     }
   },
-  "banksTransactionRegExp": "\\bcultura\\b"
+  "banksTransactionRegExp": "\\bcultura\\b",
+  "manifest_version": "2"
 }
