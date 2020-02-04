@@ -1,11 +1,8 @@
 language: node_js
 node_js:
-- '8'
+- '12'
 env:
   global:
-  - GH_USER_EMAIL="travis@example.org"
-  - GH_USER_NAME="cozy-bot"
-  - DEPLOY_REPOSITORY="git@github.com:konnectors/cultura.git"
   - secure: IrnE/jw6/DZ0rgij7zYm/MyZeRRBS/JJz0GXRZzD32OxjebWsy5+XjyfobYw/EseqkFV1kgud3ZMQ80j2Kg96hfn1ZWU4eIejCPTv5HuNHThMT3dQlZI3R7RIhtIf5m/Jz5pR76lgzPA/rve5/Lm44dTbEsUFYjU1AomBbjLUvNk/nlT+9eALIvifXLXFToyZd/HHv+cbLRYmaMRKdrpBCld2ggRVtjDvqduLilVDuoJVc2uZwIJZLBjwdiVvJRwRwKjfxvbY7qLi/tAeH/F1PDL+mLuNe4o93zMPWlHwrtbYUL3ZWv0IsLB0You7OgAciBYqlp23mJVMFX0D0iadn4MjTQwmGNdBP0LBY1Iv1m9IVDJ1wPKEmubtzRfxqfLcST/kj6f7TJl5QGikDrGsUhCiivLfABQptVYn6X9X6N/I+Gi6S6LxlKj6eKtUr58cszKUcezVwSc/+THzoCs5g454Cr0L4Xnq+9Sk+LGaaIsfUu5Hu8M1vEX6LdXd1lKtdOzU858KDWVQi8VOvd2frel51fa4oNbDJ24malhkwJNeTq/FgUfSpEDCpn8sGa4X/ctinRRmV5WjtbuFMWy7bf6h30bLsQQwLqTMQxVjuAZZIUSWNRZyaOGdz3qQnuNTZQBU2mIB/MJLOydPkQLfR7zwd5DRiHMFpuq1QUeZbU=
 cache:
   yarn: true
@@ -18,7 +15,6 @@ branches:
 script:
 - yarn lint
 - yarn build
-# - yarn run check
 deploy:
 - provider: script
   skip-cleanup: true
